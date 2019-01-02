@@ -1,5 +1,3 @@
-require("spinal-model-graph");
-
 const {
   SpinalGraphService
 } = require("spinal-env-viewer-graph-service");
