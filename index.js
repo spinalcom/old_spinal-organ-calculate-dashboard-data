@@ -22,11 +22,13 @@ function Main(graph) {
     .getAllContextGeoGraphic(SpinalGraphService.getGraph())
     .then(contexts => {
       contexts.forEach(context => {
-        utilities.getChildren(context.id.get(), 0).then(sites => {
-          sites.forEach(site => {
-            utilities.bindChildEndpoints(site.id.get(), 1);
+        utilities.getChildren(context.id.get(), context.type.get()).then(
+          sites => {
+            sites.forEach(site => {
+              utilities.bindChildEndpoints(site.id.get(), site.type
+                .get());
+            });
           });
-        });
       });
     });
 }

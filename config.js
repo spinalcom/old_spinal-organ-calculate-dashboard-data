@@ -4,5 +4,5 @@ module.exports = {
   host: 'localhost',
   port: 7777,
   protocol: 'http',
-  path: '/__users__/admin/SchneiderElectric Norway v2'
+  path: '/__users__/admin/GSE_CECOBRON_ARCHI'
 }

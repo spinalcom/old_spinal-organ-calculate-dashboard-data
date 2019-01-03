@@ -13,6 +13,10 @@ const geographicService = require(
 
 
 let utilities = {
+  getRelationsByIndex(type) {
+    let index = geographicService.GEOGRAPHIC_TYPES_ORDER.indexOf(type);
+    return geographicService.GEOGRAPHIC_RELATIONS_ORDER.slice(index);
+  },
   _calculateSum(endpoints) {
     let sum = 0;
 
@@ -24,7 +28,7 @@ let utilities = {
 
   },
   getSum(parentId, relationName, endpointName) {
-    return SpinalGraphService.getChildren(parentId, [relationName]).then(
+    return SpinalGraphService.getChildren(parentId, relationName).then(
       async children => {
         let promises = [];
 
@@ -39,7 +43,7 @@ let utilities = {
       });
   },
   getAverage(parentId, relationName, endpointName) {
-    return SpinalGraphService.getChildren(parentId, [relationName]).then(
+    return SpinalGraphService.getChildren(parentId, relationName).then(
       async children => {
         let sum = await utilities.getSum(parentId, relationName,
           endpointName);
@@ -87,16 +91,15 @@ let utilities = {
         return res;
       });
   },
-  getChildren(parentId, relationIndex) {
-    let relationName = geographicService.GEOGRAPHIC_RELATIONS_ORDER[
-      relationIndex];
+  getChildren(parentId, nodeType) {
+    let relationName = utilities.getRelationsByIndex(nodeType);
 
-    return SpinalGraphService.getChildren(parentId, [relationName]);
+    return SpinalGraphService.getChildren(parentId, relationName);
   },
-  bindChildEndpoints(parentId, indexRelation) {
+  bindChildEndpoints(parentId, nodeType) {
 
-    SpinalGraphService.getChildren(parentId, [geographicService.GEOGRAPHIC_RELATIONS_ORDER[
-        indexRelation]])
+    SpinalGraphService.getChildren(parentId, utilities.getRelationsByIndex(
+        nodeType))
       .then(children => {
         children.forEach(async child => {
           let endpoints = await SpinalGraphService.getChildren(
@@ -109,15 +112,15 @@ let utilities = {
 
             endpoint.currentValue.bind(() => {
               utilities.calculateParentValue(parentId,
-                indexRelation, endpoint.name.get());
+                nodeType, endpoint.name.get());
             })
           })
 
-          if (indexRelation + 1 < geographicService.GEOGRAPHIC_RELATIONS_ORDER
-            .length) {
-            utilities.bindChildEndpoints(child.id.get(),
-              indexRelation + 1);
-          }
+          // if (next < geographicService.GEOGRAPHIC_RELATIONS_ORDER
+          //   .length) {
+          utilities.bindChildEndpoints(child.id.get(),
+            child.type.get());
+          // }
 
         })
       }, (error) => {
@@ -126,17 +129,17 @@ let utilities = {
       })
 
   },
-  async calculateParentValue(nodeId, relationIndex, endpointName) {
+  async calculateParentValue(nodeId, nodeType, endpointName) {
 
     let endpoint = await utilities._getEndpointByName(nodeId,
       endpointName);
 
     if (endpoint && endpoint.dataType.get() !== "Boolean") {
-      endpoint.currentValue.set(await utilities.getSum(nodeId,
-        geographicService.GEOGRAPHIC_RELATIONS_ORDER[relationIndex],
+      endpoint.currentValue.set(await utilities.getAverage(nodeId,
+        utilities.getRelationsByIndex(nodeType),
         endpointName));
     } else {
-      console.log("endpointName", endpointName);
+      console.log("boolean");
     }
   }
 };
