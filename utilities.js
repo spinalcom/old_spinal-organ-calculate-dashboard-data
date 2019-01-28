@@ -15,65 +15,95 @@ const geographicService = require(
 let utilities = {
   getRelationsByIndex(type) {
     let index = geographicService.GEOGRAPHIC_TYPES_ORDER.indexOf(type);
+
     return geographicService.GEOGRAPHIC_RELATIONS_ORDER.slice(index);
   },
-  _calculateSum(endpoints) {
-    let sum = 0;
+  getSum(parentId, relationsName, endpointType) {
 
-    for (let i = 0; i < endpoints.length; i++) {
-      sum += endpoints[i].currentValue.get();
-    }
+    return utilities._getChildrenEndpointsByType(parentId, relationsName,
+      endpointType).then(promises => {
 
-    return sum;
 
+      return Promise.all(promises)
+        .then(endpoints => {
+
+          let sum = endpoints.reduce(function(param1, param2) {
+            if (typeof param1.currentValue === "undefined")
+              return param1 + param2.currentValue.get();
+
+            return param1.currentValue.get() + param2.currentValue
+              .get();
+          })
+
+          return typeof sum.currentValue === "undefined" ? sum : sum.currentValue
+            .get()
+
+        })
+        .catch((err) => {
+          console.log("error", err);
+          return 0;
+        })
+    })
   },
-  getSum(parentId, relationName, endpointName) {
-    return SpinalGraphService.getChildren(parentId, relationName).then(
-      async children => {
-        let promises = [];
+  getAverage(parentId, relationsName, endpointType) {
+    return SpinalGraphService.getChildren(parentId, relationsName).then(
+      children => {
+        return utilities.getSum(parentId, relationsName,
+          endpointType).then(sum => {
+          return sum / children.length;
+        })
 
-        for (let i = 0; i < children.length; i++) {
-          const child = children[i];
-          promises.push(utilities._getEndpointByName(child.id.get(),
-            endpointName));
-        }
 
-        return utilities._calculateSum(await Promise.all(promises));
-
-      });
-  },
-  getAverage(parentId, relationName, endpointName) {
-    return SpinalGraphService.getChildren(parentId, relationName).then(
-      async children => {
-        let sum = await utilities.getSum(parentId, relationName,
-          endpointName);
-
-        return sum / children.length;
       })
   },
-  _getEndpointByName(nodeId, endpointName) {
+  getMin(parentId, relationsName, endpointType) {
+    return utilities._getChildrenEndpointsByType(parentId, relationsName,
+      endpointType).then(promises => {
+      return Promise.all(promises).then(endpoints => {
+        let min = endpoints[0].currentValue.get();
 
-    return SpinalGraphService.getChildren(nodeId, [
-      dashboardVariables.ENDPOINT_RELATION_NAME
-    ]).then(endpointsNode => {
-
-      let endpointPromises = [];
-
-      for (let i = 0; i < endpointsNode.length; i++) {
-        endpointPromises.push(endpointsNode[i].element.load());
-      }
-
-      return Promise.all(endpointPromises).then(endpoints => {
-        for (let i = 0; i < endpoints.length; i++) {
-          const name = endpoints[i].name.get();
-          if (name == endpointName) {
-            return endpoints[i];
-          }
-
+        for (let i = 1; i < endpoints.length; i++) {
+          if (min > endpoints[i].currentValue.get())
+            min = endpoints[i].currentValue.get()
         }
-      })
+        return min;
 
-    });
+      })
+    })
+  },
+  getMax(parentId, relationsName, endpointType) {
+    return utilities._getChildrenEndpointsByType(parentId, relationsName,
+      endpointType).then(promises => {
+
+      return Promise.all(promises).then(endpoints => {
+        let max = endpoints[0].currentValue.get();
+
+        for (let i = 1; i < endpoints.length; i++) {
+          if (max < endpoints[i].currentValue.get())
+            max = endpoints[i].currentValue.get()
+        }
+        return max;
+
+      })
+    })
+  },
+  getReference(parentId, reference, relationsName, endpointType) {
+    return SpinalGraphService.getChildren(parentId, relationsName).then(
+      children => {
+        let ref;
+        for (let index = 0; index < children.length; index++) {
+          const child = children[index];
+          if (child.id.get() === reference) ref = child;
+        }
+
+        if (ref) {
+          return this._getEndpointByType(ref.id.get(), endpointType).then(
+            endpoint => {
+              return endpoint.currentValue.get();
+            })
+        }
+
+      })
   },
   getAllContextGeoGraphic(graph) {
 
@@ -92,9 +122,9 @@ let utilities = {
       });
   },
   getChildren(parentId, nodeType) {
-    let relationName = utilities.getRelationsByIndex(nodeType);
+    let relationsName = utilities.getRelationsByIndex(nodeType);
 
-    return SpinalGraphService.getChildren(parentId, relationName);
+    return SpinalGraphService.getChildren(parentId, relationsName);
   },
   bindChildEndpoints(parentId, nodeType) {
 
@@ -112,7 +142,7 @@ let utilities = {
 
             endpoint.currentValue.bind(() => {
               utilities.calculateParentValue(parentId,
-                nodeType, endpoint.name.get());
+                nodeType, endpoint.type.get());
             })
           })
 
@@ -129,19 +159,105 @@ let utilities = {
       })
 
   },
-  async calculateParentValue(nodeId, nodeType, endpointName) {
+  calculateParentValue(nodeId, nodeType, endpointType) {
 
-    let endpoint = await utilities._getEndpointByName(nodeId,
-      endpointName);
+    utilities._getEndpointByType(nodeId,
+      endpointType).then(endpoint => {
 
-    if (endpoint && endpoint.dataType.get() !== "Boolean") {
-      endpoint.currentValue.set(await utilities.getAverage(nodeId,
-        utilities.getRelationsByIndex(nodeType),
-        endpointName));
-    } else {
-      console.log("boolean");
-    }
+      this.getRule(nodeId).then(rules => {
+        if (typeof rules !== "undefined") {
+          switch (rules.rule.get()) {
+            case dashboardVariables.CALCULATION_RULES.sum:
+              this.getSum(nodeId,
+                this.getRelationsByIndex(nodeType),
+                endpointType).then(value => {
+                endpoint.currentValue.set(value);
+              })
+              break;
+            case dashboardVariables.CALCULATION_RULES.average:
+              this.getAverage(nodeId,
+                this.getRelationsByIndex(nodeType),
+                endpointType).then(value => {
+                endpoint.currentValue.set(value);
+              })
+              break;
+            case dashboardVariables.CALCULATION_RULES.max:
+              this.getMax(nodeId, this.getRelationsByIndex(nodeType),
+                endpointType).then(value => {
+                endpoint.currentValue.set(value);
+              })
+              break;
+            case dashboardVariables.CALCULATION_RULES.min:
+              this.getMin(nodeId, this.getRelationsByIndex(nodeType),
+                endpointType).then(value => {
+                endpoint.currentValue.set(value);
+              })
+              break;
+            case dashboardVariables.CALCULATION_RULES.reference:
+              this.getReference(nodeId, rules.ref, this.getRelationsByIndex(
+                nodeType), endpointType).then(value => {
+                endpoint.currentValue.set(value);
+              })
+              break;
+
+          }
+        } else {
+          this.getAverage(nodeId,
+            this.getRelationsByIndex(nodeType),
+            endpointType).then(value => {
+            endpoint.currentValue.set(value);
+          })
+        }
+      })
+
+    })
+  },
+  _getEndpointByType(nodeId, endpointType) {
+
+    return SpinalGraphService.getChildren(nodeId, [
+      dashboardVariables.ENDPOINT_RELATION_NAME
+    ]).then(endpointsNode => {
+
+      let endpointPromises = [];
+
+      for (let i = 0; i < endpointsNode.length; i++) {
+        endpointPromises.push(endpointsNode[i].element.load());
+      }
+
+      return Promise.all(endpointPromises).then(endpoints => {
+        // for (let i = 0; i < endpoints.length; i++) {
+        //   const name = endpoints[i].type.get();
+        //   if (name == endpointType) {
+        //     return endpoints[i];
+        //   }
+
+        // }
+        return endpoints.find(el => el.type.get() === endpointType)
+      })
+
+    });
+  },
+  _getChildrenEndpointsByType(parentId, relationsName, endpointType) {
+    return SpinalGraphService.getChildren(parentId, relationsName).then(
+      children => {
+        let promises = [];
+
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          promises.push(utilities._getEndpointByType(child.id.get(),
+            endpointType));
+        }
+
+        return promises;
+
+      });
+  },
+  getRule(nodeId) {
+    return SpinalGraphService.getInfo(nodeId).then(info => {
+      return info.dash_cal_rule;
+    })
   }
+
 };
 
 module.exports = utilities;
