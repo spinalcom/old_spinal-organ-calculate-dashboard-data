@@ -164,51 +164,51 @@ let utilities = {
     utilities._getEndpointByType(nodeId,
       endpointType).then(endpoint => {
 
-      this.getRule(nodeId).then(rules => {
-        if (typeof rules !== "undefined") {
-          switch (rules.rule.get()) {
-            case dashboardVariables.CALCULATION_RULES.sum:
-              this.getSum(nodeId,
-                this.getRelationsByIndex(nodeType),
-                endpointType).then(value => {
-                endpoint.currentValue.set(value);
-              })
-              break;
-            case dashboardVariables.CALCULATION_RULES.average:
-              this.getAverage(nodeId,
-                this.getRelationsByIndex(nodeType),
-                endpointType).then(value => {
-                endpoint.currentValue.set(value);
-              })
-              break;
-            case dashboardVariables.CALCULATION_RULES.max:
-              this.getMax(nodeId, this.getRelationsByIndex(nodeType),
-                endpointType).then(value => {
-                endpoint.currentValue.set(value);
-              })
-              break;
-            case dashboardVariables.CALCULATION_RULES.min:
-              this.getMin(nodeId, this.getRelationsByIndex(nodeType),
-                endpointType).then(value => {
-                endpoint.currentValue.set(value);
-              })
-              break;
-            case dashboardVariables.CALCULATION_RULES.reference:
-              this.getReference(nodeId, rules.ref, this.getRelationsByIndex(
-                nodeType), endpointType).then(value => {
-                endpoint.currentValue.set(value);
-              })
-              break;
+      let rules = this.getRule(nodeId);
 
-          }
-        } else {
-          this.getAverage(nodeId,
-            this.getRelationsByIndex(nodeType),
-            endpointType).then(value => {
-            endpoint.currentValue.set(value);
-          })
+      if (typeof rules !== "undefined") {
+        switch (rules.rule.get()) {
+          case dashboardVariables.CALCULATION_RULES.sum:
+            this.getSum(nodeId,
+              this.getRelationsByIndex(nodeType),
+              endpointType).then(value => {
+              endpoint.currentValue.set(value);
+            })
+            break;
+          case dashboardVariables.CALCULATION_RULES.average:
+            this.getAverage(nodeId,
+              this.getRelationsByIndex(nodeType),
+              endpointType).then(value => {
+              endpoint.currentValue.set(value);
+            })
+            break;
+          case dashboardVariables.CALCULATION_RULES.max:
+            this.getMax(nodeId, this.getRelationsByIndex(nodeType),
+              endpointType).then(value => {
+              endpoint.currentValue.set(value);
+            })
+            break;
+          case dashboardVariables.CALCULATION_RULES.min:
+            this.getMin(nodeId, this.getRelationsByIndex(nodeType),
+              endpointType).then(value => {
+              endpoint.currentValue.set(value);
+            })
+            break;
+          case dashboardVariables.CALCULATION_RULES.reference:
+            this.getReference(nodeId, rules.ref, this.getRelationsByIndex(
+              nodeType), endpointType).then(value => {
+              endpoint.currentValue.set(value);
+            })
+            break;
+
         }
-      })
+      } else {
+        this.getAverage(nodeId,
+          this.getRelationsByIndex(nodeType),
+          endpointType).then(value => {
+          endpoint.currentValue.set(value);
+        })
+      }
 
     })
   },
@@ -232,7 +232,8 @@ let utilities = {
         //   }
 
         // }
-        return endpoints.find(el => el.type.get() === endpointType)
+        return endpoints.find(el => el.type.get() ===
+          endpointType)
       })
 
     });
@@ -253,9 +254,7 @@ let utilities = {
       });
   },
   getRule(nodeId) {
-    return SpinalGraphService.getInfo(nodeId).then(info => {
-      return info.dash_cal_rule;
-    })
+    return SpinalGraphService.getInfo(nodeId).dash_cal_rule;
   }
 
 };
