@@ -51,15 +51,29 @@ let utilities = {
       });
   },
   getAverage(parentId, relationsName, endpointType) {
-    return SpinalGraphService.getChildren(parentId, relationsName).then(
-      children => {
+    // return SpinalGraphService.getChildren(parentId, relationsName).then(
+    //   children => {
+    //     return utilities
+    //       .getSum(parentId, relationsName, endpointType)
+    //       .then(sum => {
+    //         return sum / children.length;
+    //       });
+    //   }
+    // );
+
+    return utilities
+      ._getChildrenEndpointsByType(parentId, relationsName, endpointType)
+      .then(async promises => {
+        let len = await Promise.all(promises).then(endpoints => {
+          return endpoints.filter(el => el !== undefined);
+        })
         return utilities
           .getSum(parentId, relationsName, endpointType)
           .then(sum => {
-            return sum / children.length;
+            return sum / len.length;
           });
-      }
-    );
+      });
+
   },
   getMin(parentId, relationsName, endpointType) {
     return utilities
@@ -145,6 +159,8 @@ let utilities = {
           } else {
             endpoints = await this._getAllEndpointOfBimObject(child.id
               .get());
+            console.log("endpoints", endpoints);
+
           }
 
           endpoints.forEach(async endpointModel => {
@@ -250,13 +266,23 @@ let utilities = {
       });
     } else {
       return this._getAllEndpointOfBimObject(nodeId).then(async endpoints => {
-        let x = await endpoints
-          .find(async el => {
-            let t = await el.element.load();
+        let x;
 
-            return t.type.get() === endpointType;
-          })
-          .element.load();
+        if (SpinalGraphService.getInfo(nodeId).reference &&
+          SpinalGraphService.getInfo(nodeId).reference[endpointType]) {
+          x = SpinalGraphService.getInfo(SpinalGraphService.getInfo(
+            nodeId).reference[endpointType].get()).element.load();
+        } else if (endpoints.length > 0) {
+          x = await endpoints
+            .find(async el => {
+              let t = await el.element.load();
+
+              return t.type.get() === endpointType;
+            })
+            .element.load();
+        }
+
+
 
         return x;
       });
@@ -282,6 +308,19 @@ let utilities = {
     return SpinalGraphService.getInfo(nodeId).dash_cal_rule;
   },
   _getAllEndpointOfBimObject(bimObjectId) {
+    let node = SpinalGraphService.getInfo(bimObjectId);
+    let references = [];
+
+    if (node.reference) {
+
+      let attrs = node.reference._attribute_names;
+
+      attrs.forEach(el => {
+        references.push(node.reference[el].get());
+      })
+    }
+
+
     return find(
       bimObjectId,
       [
@@ -291,7 +330,12 @@ let utilities = {
         SpinalBmsEndpointGroup.relationName
       ],
       node => {
-        return node.type.get() === SpinalBmsEndpoint.nodeTypeName;
+        if (references.length > 0) {
+          return references.indexOf(node.id.get()) !== -1;
+        } else {
+          return node.type.get() === SpinalBmsEndpoint.nodeTypeName;
+        }
+
       }
     );
 
